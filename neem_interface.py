@@ -4,7 +4,8 @@ import time
 
 from tqdm import tqdm
 
-from neem_interface_python.rosprolog_client import Prolog, atom
+from neem_interface_python.rosprolog_client import atom, Prolog
+#from rosprolog_client import Prolog, PrologException
 from neem_interface_python.utils.utils import Datapoint, Pose
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -12,6 +13,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 class NEEMError(Exception):
     pass
+
 
 
 class NEEMInterface:
@@ -23,8 +25,10 @@ class NEEMInterface:
         self.prolog = Prolog()
 
         # Load neem-interface.pl into KnowRob
-        neem_interface_path = os.path.join(SCRIPT_DIR, os.pardir, "neem-interface", "neem-interface.pl")
+        neem_interface_path = os.path.join(SCRIPT_DIR, "src", "neem-interface", "neem-interface.pl")
+        print(neem_interface_path)
         self.prolog.ensure_once(f"ensure_loaded({atom(neem_interface_path)})")
+
 
 
     ### NEEM Creation ###############################################################
@@ -116,7 +120,7 @@ class NEEMInterface:
         state_iri = self.prolog.ensure_once(f"""
             kb_project([
                 new_iri(State, soma:'State'), is_individual(State), instance_of(State, {atom(state_class)}),
-                new_iri(StateType, soma:'StateType'), is_individual(StateType), instance_of(StateType, {atom(state_type)}), 
+                new_iri(StateType, soma:'StateType'), is_individual(StateType), instance_of(StateType, {atom(state_type)}),
                 holds(StateType, dul:'classifies',  State)
             ])
         """)["State"]
