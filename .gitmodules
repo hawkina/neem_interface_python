@@ -1,4 +1,3 @@
 [submodule "src/neem-interface"]
 	path = src/neem-interface
-	url = git@github.com:benjaminalt/neem-interface.git
-
+	url = https://github.com/benjaminalt/neem-interface.git
