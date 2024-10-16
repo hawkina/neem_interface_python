@@ -1,3 +1,4 @@
+# --- DEPRECATED---?
 """
 Rosprolog client loosely coupled to ROS and compatible with Python 3
 """

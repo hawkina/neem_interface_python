@@ -2,6 +2,7 @@ import os
 from typing import List, Tuple, Optional
 import time
 
+import rospy.rostime
 from tqdm import tqdm
 
 from neem_interface_python.rosprolog_client import atom, Prolog
@@ -15,7 +16,6 @@ class NEEMError(Exception):
     pass
 
 
-
 class NEEMInterface:
     """
     Low-level interface to KnowRob, which enables the easy creation of NEEMs in Python.
@@ -25,21 +25,27 @@ class NEEMInterface:
         self.prolog = Prolog()
 
         # Load neem-interface.pl into KnowRob
-        neem_interface_path = os.path.join(SCRIPT_DIR, "src", "neem-interface", "neem-interface.pl")
+        neem_interface_path = os.path.join(SCRIPT_DIR, "src", "neem-interface", "src", "neem-interface.pl")
         self.prolog.ensure_once(f"ensure_loaded({atom(neem_interface_path)})")
 
 
 
     ### NEEM Creation ###############################################################
 
-    def start_episode(self, task_type: str, env_owl: str, env_owl_ind_name: str, env_urdf: str,
+    def start_episode(self, task_type: str, env_owl: str, env_owl_ind_name: str, env_urdf: str, env_urdf_prefix: str,
                       agent_owl: str, agent_owl_ind_name: str, agent_urdf: str, start_time: float = None):
         """
         Start an episode and return the prolog atom for the corresponding action.
+        E.g. res = 'http://www.ontologydesignpatterns.org/ont/dul/DUL.owl#Action_WBEKCRYQ'
         """
-        q = f"mem_episode_start(Action, {atom(task_type)}, {atom(env_owl)}, {atom(env_owl_ind_name)}, {atom(env_urdf)}," \
-            f"{atom(agent_owl)}, {atom(agent_owl_ind_name)}, {atom(agent_urdf)}," \
-            f"{start_time if start_time is not None else time.time()})"
+        # q = f"mem_episode_start(Action, {atom(task_type)}, {atom(env_owl)}, {atom(env_owl_ind_name)}, {atom(env_urdf)}," \
+        #     f"{atom(agent_owl)}, {atom(agent_owl_ind_name)}, {atom(agent_urdf)}," \
+        #     f"{start_time if start_time is not None else time.time()})"
+        q = f"mem_episode_start(Action, {atom(env_owl)}, {atom(env_owl_ind_name)}, {atom(env_urdf)}," \
+            f"{atom(env_urdf_prefix)},{atom(agent_owl)}, {atom(agent_owl_ind_name)}, {atom(agent_urdf)}" \
+            f")."
+            #f"{start_time if start_time is not None else time.time()})"
+
         res = self.prolog.ensure_once(q)
         return res["Action"]
 
@@ -49,24 +55,40 @@ class NEEMInterface:
         """
         return self.prolog.ensure_once(f"mem_episode_stop({atom(neem_path)}, {end_time if end_time is not None else time.time()})")
 
-    def add_subaction_with_task(self, parent_action, sub_action_type="dul:'Action'", task_type="dul:'Task'",
+    def add_subaction_with_task(self, parent_action, task_type="dul:'Task'", sub_action_type="dul:'Action'",
                                 start_time: float = None, end_time: float = None) -> str:
         """
         Assert a subaction of a given type, and an associated task of a given type.
         """
-        q = f"mem_add_subaction_with_task({atom(parent_action)},{atom(sub_action_type)},{atom(task_type)},SubAction)"
+        q = f"add_subaction_with_task({atom(parent_action)}, {atom(task_type)}, SubAction)"
         solution = self.prolog.ensure_once(q)
         action_iri = solution["SubAction"]
         if start_time is not None and end_time is not None:
             self.prolog.ensure_once(f"kb_project(has_time_interval({atom(action_iri)}, {start_time}, {end_time}))")
         return action_iri
 
+    def belief_perceived_at(self, object_type, mesh, position, rotation):
+        # add an object which has been perceived by perception to knowrob
+        q = f"belief_perceived_at({atom(object_type)}, {atom(mesh)}, {atom(position)}, {atom(rotation)})"
+        res = self.prolog.ensure_once(q)
+        # returns the whole object with the Knowledge ID
+        return res
+
+
     def add_participant_with_role(self, action: str, participant: str, role_type="dul:'Role'") -> None:
         """
         Assert that something was a participant with a given role in an action.
         Participant must already have been inserted into the knowledge base.
         """
-        q = f"mem_add_participant_with_role({atom(action)}, {atom(participant)}, {atom(role_type)})"
+        q = f"add_participant_with_role({atom(action)}, {atom(participant)}, {atom(role_type)})"
+        self.prolog.ensure_once(q)
+
+    def action_begin(self, current_action: str):
+        q = f"mem_action_begin({atom(current_action)})"
+        self.prolog.ensure_once(q)
+
+    def action_end(self, current_action: str):
+        q = f"mem_action_end({atom(current_action)})"
         self.prolog.ensure_once(q)
 
     def assert_tf_trajectory(self, points: List[Datapoint]):
@@ -186,6 +208,82 @@ class NEEMInterface:
         res = self.prolog.ensure_once(f"wrench_mng_trajectory({atom(obj)}, {start_timestamp}, {end_timestamp}, Trajectory)")
         return res["Trajectory"]
 
+    # generic workaround
+    def triple(self, subject, predicate, obj):
+        res = self.prolog.ensure_once(f"triple({atom(subject)}, {atom(predicate)}, {atom(obj)})")
+        return res
+
+    def make_instance_of(self, class_iri):
+        res = self.prolog.ensure_once(f"kb_project([new_iri(Instance, {atom(class_iri)}), has_type(Instance, {atom(class_iri)})])")
+        return res["Instance"]
+
+    def add_pose_to_instance(self, instance, pose_array): # instance of Location
+        res = self.prolog.ensure_once(f"kb_project(([new_iri(PoseObj, soma:'6DPose'), has_type(PoseObj, soma:'6DPose'),"
+                                      f"triple({atom(instance)}, 'http://www.ease-crc.org/ont/SOMA.owl#hasLocation', PoseObj)])),"
+                                      f"time_scope({rospy.rostime.get_time()}, {rospy.rostime.get_time()}, Scope),"
+                                      f"tf_set_pose(PoseObj, {pose_array}, Scope).")
+        return res
+
+    def add_object_designator_description(self, object_designator_description):
+        # TODO ensure existance ob obj_designator_name
+        # ensure name exists
+        if len(object_designator_description.names[0])>0:
+            name = object_designator_description.names[0]
+            query_part= f"triple(PhysicalObject, soma:'hasNameString', {atom(name)})"
+
+        elif len(object_designator_description.types[0])>0:
+            type = object_designator_description.types[0] # TODO might need matching from Enum to String or smth.
+            query_part= f"triple(PhysicalObject, dul:'classifies', {atom(type)})"
+
+        else:
+            query_part = ""
+
+        res = self.prolog.ensure_once(f"kb_project([new_iri(ObjectDesigDesc, 'http://www.ease-crc.org/ont/SOMA-CRAM.owl#Object_Designator_Design'), "
+                                      f"has_type(ObjectDesigDesc, 'http://www.ease-crc.org/ont/SOMA-CRAM.owl#Object_Designator_Design'),"
+                                      f"new_iri(PhysicalObject, dul:'PhysicalObject'), has_type(PhysicalObject, dul:'PhysicalObject'),"
+                                      f"triple(ObjectDesigDesc, dul:'describes', PhysicalObject),"
+                                      f"{query_part}]),"
+                                      f"instance_of(ObjectDesigDesc, Class).")
+        return res["ObjectDesigDesc"]#
+
+    # an information object in this case is an IRI of an object designator description
+    def add_information_object(self, information_object):
+        res = self.prolog.ensure_once(f"kb_project([new_iri(InformationObject, dul:'Information_Object'), "
+                                      f"has_type(InformationObject, dul:'Information_Object'),"
+                                      f"triple(InformationObject, dul:'isExpressedBy', {atom(information_object)})]),"
+                                      f"instance_of(InformationObject, Class).")
+        return res["InformationObject"]
+
+
+    # todo: take into account if params are not object designators
+    def add_location_designator_description(self, dict_of_object_designator_descriptions): # WIP
+        # todo this should work without hardcoded field names
+        collected_items = {}
+        query_part = ""
+        furniture_item, room = None, None
+        if dict_of_object_designator_descriptions.get("furniture_item"):
+            furniture_item = dict_of_object_designator_descriptions.get("furniture_item")
+            information_furniture_item = self.add_information_object(furniture_item)
+            query_part += f", triple(LocationDesigDesc, dul:'isExpressedBy', {atom(information_furniture_item)})"
+
+        if dict_of_object_designator_descriptions.get("room"):
+            room = dict_of_object_designator_descriptions.get("room")
+            information_room = self.add_information_object(room)
+            query_part += f", triple(LocationDesigDesc, dul:'isExpressedBy', {atom(information_room)})"
+
+        if furniture_item and room:
+            query_part += f", triple({atom(furniture_item)}, soma:'isInsideOf', {atom(room)})"
+        # build query parts of the parameters given above
+        rospy.loginfo(f"Query Part: {query_part}")
+        pass
+        res = self.prolog.ensure_once(f"kb_project([new_iri(LocationDesigDesc, 'http://www.ease-crc.org/ont/SOMA-CRAM.owl#Location_Designator_Design'), "
+                                      f"has_type(LocationDesigDesc, 'http://www.ease-crc.org/ont/SOMA-CRAM.owl#Location_Designator_Design'),"
+                                      f"new_iri(Location, soma:'Location'), has_type(Location, soma:'Location'),"
+                                      f"triple(LocationDesigDesc, 'http://www.ease-crc.org/ont/SOMA.owl#hasLocation', Location)"
+                                      f"{query_part}]),"
+                                      f"instance_of(LocationDesigDesc, Class)."
+                                      )
+        return res["LocationDesigDesc"]
 
 class Episode:
     """
@@ -193,13 +291,14 @@ class Episode:
     start and end a NEEM context (episode).
     """
     def __init__(self, neem_interface: NEEMInterface, task_type: str, env_owl: str, env_owl_ind_name: str,
-                 env_urdf: str, agent_owl: str, agent_owl_ind_name: str, agent_urdf: str, neem_output_path: str,
+                 env_urdf: str, env_urdf_prefix: str, agent_owl: str, agent_owl_ind_name: str, agent_urdf: str, neem_output_path: str,
                  start_time=None):
         self.neem_interface = neem_interface
         self.task_type = task_type
         self.env_owl = env_owl
         self.env_owl_ind_name = env_owl_ind_name
         self.env_urdf = env_urdf
+        self.env_urdf_prefix = env_urdf_prefix
         self.agent_owl = agent_owl
         self.agent_owl_ind_name = agent_owl_ind_name
         self.agent_urdf = agent_urdf
@@ -211,8 +310,8 @@ class Episode:
 
     def __enter__(self):
         self.top_level_action_iri = self.neem_interface.start_episode(self.task_type, self.env_owl,
-                                                                      self.env_owl_ind_name, self.env_urdf, self.agent_owl,
-                                                                      self.agent_owl_ind_name, self.agent_urdf,
+                                                                      self.env_owl_ind_name, self.env_urdf, self.env_urdf_prefix,
+                                                                      self.agent_owl, self.agent_owl_ind_name, self.agent_urdf,
                                                                       self.start_time)
         self.episode_iri = \
             self.neem_interface.prolog.ensure_once(f"kb_call(is_setting_for(Episode, {atom(self.top_level_action_iri)}))")[
