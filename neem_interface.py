@@ -63,9 +63,14 @@ class NEEMInterface:
         q = f"add_subaction_with_task({atom(parent_action)}, {atom(task_type)}, SubAction)"
         solution = self.prolog.ensure_once(q)
         action_iri = solution["SubAction"]
+        action_designator_design_iri = self.prolog.ensure_once(f"kb_project([new_iri(ActionDesigDesc, 'http://www.ease-crc.org/ont/SOMA-CRAM.owl#Action_Designator_Design'),"
+                                                               f"has_type(ActionDesigDesc, 'http://www.ease-crc.org/ont/SOMA-CRAM.owl#Action_Designator_Design'),"
+                                                               f"triple(ActionDesigDesc, dul:'describes', {atom(action_iri)})]),"
+                                                               f"instance_of(ActionDesigDesc, Class).")
+
         if start_time is not None and end_time is not None:
             self.prolog.ensure_once(f"kb_project(has_time_interval({atom(action_iri)}, {start_time}, {end_time}))")
-        return action_iri
+        return action_iri, action_designator_design_iri["ActionDesigDesc"]
 
     def belief_perceived_at(self, object_type, mesh, position, rotation):
         # add an object which has been perceived by perception to knowrob
@@ -73,6 +78,11 @@ class NEEMInterface:
         res = self.prolog.ensure_once(q)
         # returns the whole object with the Knowledge ID
         return res
+
+    def create_action_id(self):
+        res = self.prolog.ensure_once(f"kb_project([new_iri(ActionDesig, soma_cram:'Action_Designator'),"
+                                      f"has_type(ActionDesig, soma_cram:'Action_Designator')])")
+        return res["ActionDesig"]
 
 
     def add_participant_with_role(self, action: str, participant: str, role_type="dul:'Role'") -> None:
@@ -210,7 +220,8 @@ class NEEMInterface:
 
     # generic workaround
     def triple(self, subject, predicate, obj):
-        res = self.prolog.ensure_once(f"triple({atom(subject)}, {atom(predicate)}, {atom(obj)})")
+        rospy.loginfo(f"Adding triple: {subject}, {predicate}, {obj}")
+        res = self.prolog.ensure_once(f"triple({atom(subject)}, {atom(predicate)}, {atom(obj)}).")
         return res
 
     def make_instance_of(self, class_iri):
@@ -274,8 +285,6 @@ class NEEMInterface:
         if furniture_item and room:
             query_part += f", triple({atom(furniture_item)}, soma:'isInsideOf', {atom(room)})"
         # build query parts of the parameters given above
-        rospy.loginfo(f"Query Part: {query_part}")
-        pass
         res = self.prolog.ensure_once(f"kb_project([new_iri(LocationDesigDesc, 'http://www.ease-crc.org/ont/SOMA-CRAM.owl#Location_Designator_Design'), "
                                       f"has_type(LocationDesigDesc, 'http://www.ease-crc.org/ont/SOMA-CRAM.owl#Location_Designator_Design'),"
                                       f"new_iri(Location, soma:'Location'), has_type(Location, soma:'Location'),"
@@ -285,6 +294,32 @@ class NEEMInterface:
                                       )
         return res["LocationDesigDesc"]
 
+    def add_resolved_location_designator(self, resolved_location_designator, location_designator_description_iri):
+        all_possible_poses = resolved_location_designator.poses
+        all_poses_array = []
+        all_poses_query_part = ", "
+        # todo: log all possible poses as the outcome of designator resolution
+        for pose in all_possible_poses:
+            pose_array = [pose.frame, pose.position_as_list(), pose.orientation_as_list()]
+            all_poses_array.append(pose_array)
+            all_poses_query_part += f"kb_project(([new_iri(PoseObj, soma:'6DPose'), has_type(PoseObj, soma:'6DPose')," \
+                                      f"triple(Location, soma:'hasLocation', PoseObj)]))," \
+                                      f"time_scope({rospy.rostime.get_time()}, {rospy.rostime.get_time()}, Scope)," \
+                                      f"tf_set_pose(PoseObj, {pose_array}, Scope),"
+
+
+        #add_pose_to_instance(loc_inst, pose_array)
+        res = self.prolog.ensure_once(f"kb_project([new_iri(ResolvedLocationDesig, 'http://www.ease-crc.org/ont/SOMA-CRAM.owl#Location_Designator'), "
+                                      f"has_type(ResolvedLocationDesig, 'http://www.ease-crc.org/ont/SOMA-CRAM.owl#Location_Designator'),"
+                                      f"triple(ResolvedLocationDesig, dul:'expresses', {atom(location_designator_description_iri)}),"
+                                      f"triple({atom(location_designator_description_iri)}, soma_cram:'resolved_to', ResolvedLocationDesig),"
+                                      f"new_iri(Location, soma:'Location'), has_type(Location, soma:'Location')]),"
+                                      f"instance_of(Location, LocClass)"
+                                      f"{all_poses_query_part} "
+                                      f"instance_of(ResolvedLocationDesig, Class)."
+                                      )
+        # todo: fix return result to be the ID of the Location Designator
+        return res["ResolvedLocationDesig"]
 class Episode:
     """
     Convenience object and context manager for NEEM creation. Can be used in a 'with' statement to automatically
