@@ -1,9 +1,28 @@
 from typing import List
-
+import re
 from scipy.spatial.transform import Rotation
 import dateutil.parser
 
-from neem_interface_python.rosprolog_client import atom
+
+def atom(string: str):
+    try:
+        if re.match(".+:'.+'", string):
+            # Has namespace prefix --> don't wrap in quotes
+            return string
+        return f"'{string}'"
+    except:
+        print(string)
+        raise RuntimeError()
+
+class PC:
+    PINK = '\033[95m'
+    BLUE = '\033[94m'
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    RED = '\033[91m'
+    GREY = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
 
 
 class Pose:

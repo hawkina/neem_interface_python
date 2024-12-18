@@ -1,8 +1,9 @@
 from typing import List
 
-from neem_interface_python.neem_interface import NEEMInterface
-from neem_interface_python.rosprolog_client import Prolog, atom
-
+#from neem_interface_python.py_to_prolog_interface import NEEMInterface
+from neem_interface_python.rosprolog_client import Prolog
+from neem_interface_python.utils import atom
+#### deprecated
 
 class NEEM:
     """
@@ -10,7 +11,7 @@ class NEEM:
     """
 
     def __init__(self):
-        self.neem_interface = NEEMInterface()
+        #self.neem_interface = NEEMInterface()
         self.prolog = Prolog()
         self.episode = self.prolog.ensure_once("kb_call(is_episode(Episode))")["Episode"]
 
@@ -84,5 +85,5 @@ class NEEM:
 
     @staticmethod
     def load(neem_dir: str):
-        NEEMInterface().load_neem(neem_dir)
+        #NEEMInterface().load_neem(neem_dir)
         return NEEM()
