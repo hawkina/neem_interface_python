@@ -17,10 +17,11 @@ knowrob_client = Prolog()
 
 def init_neem_interface():
     """
-    Initializes the Neem interface. Pleace provide a Prolog client to connect to.
+    Initializes the Neem interface. Please provide a Prolog client to connect to.
     """
     neem_interface_path = os.path.join(SCRIPT_DIR, "src", "neem-interface", "src", "neem-interface.pl")
-    knowrob_client.once(f"loaded({atom(neem_interface_path)})")
+    print(f"path: {neem_interface_path}")
+    knowrob_client.once(f"ensure_loaded({atom(neem_interface_path)}).")
 
     ### NEEM Creation ###############################################################
 

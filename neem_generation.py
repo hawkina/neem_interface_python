@@ -3,14 +3,14 @@ import inspect
 import rospy
 from neem_interface_python.py_to_prolog_interface import *
 from neem_interface_python.utils import PC, atom
-#from demos.pycram_gpsr_demo import utils
+# from demos.pycram_gpsr_demo import utils
+from pycram.designators import *
 from pycram.designators.action_designator import *
-# TODO maybe replace?
-#from demos.pycram_gpsr_demo.action_designator_parser import ActionAbstract, Location
-from pycram.designator import ObjectDesignatorDescription, ActionAbstract
-from pycram.designators.object_designator import ObjectDesignatorDescription as Object
-#from pycram.ontology.ontology import OntologyManager
-#from demos.pycram_gpsr_demo import knowrob_interface as kb
+from pycram.designators.action_designator import ActionAbstract
+from pycram.designators.object_designator import *
+from neem_interface_python import py_to_prolog_interface
+import pycram.tasktree as tt # needed to access the performed action
+
 
 task_type = "Serve Breakfast"
 # todo change from apartment to robocuop arena
@@ -18,11 +18,11 @@ env_owl = "package://iai_apartment/owl/iai-apartment.owl"
 env_owl_ind_name = "http://knowrob.org/kb/iai-apartment.owl#apartment_root"  # ind = individual
 env_urdf = "package://iai_apartment/urdf/apartment.urdf"
 env_urdf_prefix = "iai_apartment/"
-#agent_owl = "package://knowrob/owl/robots/hsrb.owl"
+# agent_owl = "package://knowrob/owl/robots/hsrb.owl"
 agent_owl = "package://knowrob/owl/robots/PR2.owl"
-#agent_owl_ind_name = "http://knowrob.org/kb/hsrb.owl#hsrb_robot1"
+# agent_owl_ind_name = "http://knowrob.org/kb/hsrb.owl#hsrb_robot1"
 agent_owl_ind_name = "http://knowrob.org/kb/PR2.owl#PR2_0"
-#agent_urdf = "package://knowrob/urdf/hsrb.urdf"
+# agent_urdf = "package://knowrob/urdf/hsrb.urdf"
 agent_urdf = "package://knowrob/urdf/pr2.urdf"
 neem_output_path = "/home/hawkin/ros_ws/neems_library/GPSR_neems/"
 start_time = None
@@ -30,15 +30,16 @@ root_action = "http://www.ontologydesignpatterns.org/ont/dul/DUL.owl#Action_ZBRT
 
 #### temp. remove later ####
 transporting = "http://www.ease-crc.org/ont/SOMA.owl#Transporting"
-#toya = "http://www.ease-crc.org/ont/SUTURO.owl#ToyotaHSR_IAMTOYA"
-toya = "http://www.ease-crc.org/ont/SUTURO.owl#PR2_0"
+# toya = "http://www.ease-crc.org/ont/SUTURO.owl#ToyotaHSR_IAMTOYA"
+robot = "http://www.ease-crc.org/ont/SUTURO.owl#PR2_0"
 
+# internal?
 def start_episode():
     global root_action
 
-    res = start_episode(task_type, env_owl, env_owl_ind_name, env_urdf,
-                                                     env_urdf_prefix, agent_owl,
-                                                     agent_owl_ind_name, agent_urdf)
+    res = py_to_prolog_interface.start_episode(task_type, env_owl, env_owl_ind_name, env_urdf,
+                        env_urdf_prefix, agent_owl,
+                        agent_owl_ind_name, agent_urdf)
     root_action = res
     return root_action
 
@@ -53,6 +54,7 @@ def add_subaction_with_task(parent_action=root_action, action_type=transporting)
     res = add_subaction_with_task(parent_action, action_type)
     return res
 
+
 # result: the iri of the subaction. e.g. http://www.ontologydesignpatterns.org/ont/dul/DUL.owl#Action_PBKJOHZG'
 
 # ---------------- Automation of calling the NEEM interface ----------------
@@ -63,7 +65,7 @@ current_action = None
 
 
 # Define the initialization function that establishes the connection
-def initialize_neem(): # done
+def initialize_neem():  # done
     global initialized
     if not initialized:
         rospy.loginfo(PC.GREEN + "[NEEM] Initializing connection..." + PC.GREY)
@@ -77,7 +79,8 @@ def initialize_neem(): # done
 # Class-level decorator to handle object initialization
 def neem_class_decorator(cls):
     original_init = cls.__init__
-# --- CREATES NEEM AT ACTION CREATION TIME ---
+
+    # --- CREATES NEEM AT ACTION CREATION TIME ---
     @functools.wraps(original_init)
     def new_init(self, *args, **kwargs):
         global parent_action, current_action, ont  # ont is an IRI
@@ -88,14 +91,11 @@ def neem_class_decorator(cls):
         if isinstance(self, NavigateActionPerformable):
             rospy.loginfo(PC.RED + f"[NEEM] NavigateActionPerformable: {self.__dict__}" + PC.GREY)
 
-        if isinstance(self, ActionAbstract):
-            rospy.loginfo(PC.PINK + f"[NEEM] Created ActionAbstract: {self.__dict__}" + PC.GREY)
-
-            if isinstance(self.action_instance, NavigateAction) or isinstance(self, NavigateAction):
+            if isinstance(self, NavigateAction) or isinstance(self, NavigateAction):
                 rospy.loginfo(PC.GREEN + "[NEEM] NavigateAction detected" + PC.GREY)
                 current_action, current_action_design_instance = add_subaction_with_task(parent_action=parent_action,
                                                                                          action_type=ont.soma.Navigating.iri)
-                add_participant_with_role(current_action, toya, ont.soma.AgentRole.iri)
+                add_participant_with_role(current_action, robot, ont.soma.AgentRole.iri)
                 # todo add goal which is the location designator
                 # self.target_locations
                 # create an instance of a location
@@ -148,14 +148,15 @@ def neem_class_decorator(cls):
                             PC.GREEN + f"[NEEM] Done processing LocationDesignator: {resolved_desig}" + PC.GREY)
                 # --- RESOLVE END ---
 
-            # Wrap resolve and perform methods of ActionAbstract to log them
+                # Wrap resolve and perform methods of ActionDesignator to log them
                 self.resolve = log_method(self.resolve, self, 'resolve')
                 self.perform = log_method(self.perform, self, 'perform')
         else:
-            rospy.logerr(f"[NEEM] not an instance of ActionAbstract: {self}" + PC.GREY)
+            rospy.logerr(f"[NEEM] not an instance of ActionDesignator: {self}" + PC.GREY)
 
     cls.__init__ = new_init
     return cls
+
 
 # --- Decorator to generate NEEM entries for a method -> Resolve and Perform---
 # This decorator logs calls to the resolve and perform methods
@@ -165,13 +166,13 @@ def log_method(method, action_designator, method_name):
         rospy.loginfo(PC.PINK + f"[NEEM] In Log_method wrapper {method_name}() on {action_designator}" + PC.GREY)
 
         if method_name == 'resolve':
-            #todo add type specific handling
+            # todo add type specific handling
             rospy.loginfo(PC.PINK + f"[NEEM] Starting {method_name} on {action_designator.__dict__}" + PC.GREY)
             # connect to parent e.g. design e.g. ActionDescription
             action_designator_design_id = action_designator.action_designator_design_id
             action_id = create_action_id()
             triple(action_designator_design_id, f"dul:expresses", action_id)
-            resolved_action = method(*args, **kwargs) # actually resolve the designator
+            resolved_action = method(*args, **kwargs)  # actually resolve the designator
             resolved_action.action_id = action_id
             resolved_action.action_designator_design_id = action_designator_design_id
             target_location = make_instance_of("soma:Location")
@@ -184,7 +185,7 @@ def log_method(method, action_designator, method_name):
 
         elif method_name == 'perform':
             # Log start time for perform
-            action_begin(current_action) # double check if needed
+            action_begin(current_action)  # double check if needed
             rospy.loginfo(PC.PINK + f"[NEEM] Starting {method_name} on {action_designator}" + PC.GREY)
 
             # Call the original method and log the result
@@ -194,7 +195,7 @@ def log_method(method, action_designator, method_name):
             rospy.loginfo(PC.PINK + f"[NEEM] {method_name}() result: {result}" + PC.GREY)
 
             # Log end time for perform
-            action_end(current_action) # double check if need
+            action_end(current_action)  # double check if need
             rospy.loginfo(
                 PC.PINK + f"[NEEM] {method_name}() completed on {action_designator}, result: {result}" + PC.GREY)
         else:
@@ -204,13 +205,14 @@ def log_method(method, action_designator, method_name):
 
     return wrapper
 
-# Function to dynamically apply decorators to your ActionAbstract class
+
+# Function to dynamically apply decorators to your ActionDesignator class
 # potentionally removable
 def enable_neem_generation():
     class NeemClass:
         def __init__(self, type, **kwargs):
             self.type = type
-            rospy.loginfo(PC.YELLOW + f"[NEEM] ActionAbstract initialized with type {self.type}" + PC.GREY) #?
+            rospy.loginfo(PC.YELLOW + f"[NEEM] ActionDesignator initialized with type {self.type}" + PC.GREY)  # ?
 
         def resolve(self):
             # Logic for resolving designator
@@ -225,22 +227,24 @@ def enable_neem_generation():
             return "--- action_performed ---"
 
     # Apply class-level decorator
-    NeemClass = neem_class_decorator(ActionAbstract)
+    NeemClass = neem_class_decorator(NavigateAction)
     # Apply method-level decorator to specific methods
     # Apply method-level decorator to specific methods
-    #ActionAbstract.resolve = generate_neem(ActionAbstract.resolve)
-    #ActionAbstract.perform = generate_neem(ActionAbstract.perform)
+    # ActionDesignator.resolve = generate_neem(ActionDesignator.resolve)
+    # ActionDesignator.perform = generate_neem(ActionDesignator.perform)
     # TODO this should be dynamic
-    #NavigateActionPerformable.perform = generate_neem(NavigateActionPerformable.perform)
-    #DetectActionPerformable.perform = generate_neem(DetectActionPerformable.perform)
+    # NavigateActionPerformable.perform = generate_neem(NavigateActionPerformable.perform)
+    # DetectActionPerformable.perform = generate_neem(DetectActionPerformable.perform)
 
     return NeemClass
+
 
 def reset_neem():
     global initialized, parent_action, current_action
     initialized = False
     parent_action = root_action
     current_action = None
+
 
 # --- NEEM queries ----
 def get_longest_event():
@@ -251,4 +255,3 @@ def get_longest_event():
                                                f"Durations),"
                                                f"max_member([MaxDuration, LongestEvt], Durations).")
     return result
-

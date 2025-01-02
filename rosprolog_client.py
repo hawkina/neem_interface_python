@@ -74,7 +74,7 @@ class Prolog:
         self._simple_query_srv = rospy.ServiceProxy(f'{namespace}/query', PrologQuery)
         self._next_solution_srv = rospy.ServiceProxy(f'{namespace}/next_solution', PrologNextSolution)
         self._finish_query_srv = rospy.ServiceProxy(f'{namespace}/finish', PrologFinish)
-        self.all_solutions(f"init_gpsr_2024.") # intit semantic map things
+        #self.all_solutions(f"init_gpsr_2024.") # intit semantic map things
         rospy.loginfo("[KnowRob]  done.")
 
     def query(self, query_str):
