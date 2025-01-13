@@ -3,6 +3,13 @@ from json_prolog_msgs.srv import PrologQuery, PrologNextSolution, PrologFinish, 
 from typing import Iterator, Dict, List, Optional
 #import pycram.external_interfaces.knowrob_designator_client as kdc
 
+"""
+This is the ROS Prolog Client which connects to the Rosprolog service of (old) KnowRob.
+It allows you to send Prolog queries to KnowRob.
+This interface is meant to be used with the old KnowRob, which is: https://github.com/suturo/knowrob
+"""
+
+
 class PrologQueryWrapper:
     def __init__(self, query_str: str, simple_query_srv, next_solution_srv, finish_srv, iterative=True):
         """

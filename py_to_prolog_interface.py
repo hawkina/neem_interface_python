@@ -10,6 +10,12 @@ from neem_interface_python.utils import atom
 # from rosprolog_client import Prolog, PrologException
 from neem_interface_python.utils.utils import Datapoint, Pose
 
+"""
+This file contains the python wrappers for the most common KnowRob queries which are related to NEEM generation.
+This is very tightly coupled with the neem-interface.pl file in the src/neem-interface/src/ folder.
+"""
+
+
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 knowrob_client = Prolog()

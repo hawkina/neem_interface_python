@@ -11,6 +11,14 @@ from pycram.designators.object_designator import *
 from neem_interface_python import py_to_prolog_interface
 import pycram.tasktree as tt # needed to access the performed action
 
+"""
+This file contains the logic to generate NEEM entries for the actions performed in the CRAM plan.
+This means that it contains the hook which is called when an action designator is created, resolved or performed,
+which in turn sends the action designator data to KnowRob in order to generate a NEEM.
+It also contains the variables which need to be set in advance, describing the urdf files, owl files, etc.
+"""
+
+
 
 task_type = "Serve Breakfast"
 # todo change from apartment to robocuop arena
