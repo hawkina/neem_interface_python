@@ -32,7 +32,7 @@ agent_owl = "package://knowrob/owl/robots/PR2.owl"
 agent_owl_ind_name = "http://knowrob.org/kb/PR2.owl#PR2_0"
 # agent_urdf = "package://knowrob/urdf/hsrb.urdf"
 agent_urdf = "package://knowrob/urdf/pr2.urdf"
-neem_output_path = "/home/hawkin/ros_ws/neems_library/GPSR_neems/"
+neem_output_path = "/home/hawkin/ros_ws/neems_library/serve_breakfast_neems/"
 start_time = None
 root_action = "http://www.ontologydesignpatterns.org/ont/dul/DUL.owl#Action_ZBRTKSFH"  # remove later
 
@@ -58,9 +58,9 @@ def stop_and_dump_episode():
     return neem_output_path
 
 
-def add_subaction_with_task(parent_action=root_action, action_type=transporting):  # TODO remove transporting
-    res = add_subaction_with_task(parent_action, action_type)
-    return res
+# def add_subaction_with_task(parent_action=root_action, action_type=transporting):  # TODO remove transporting
+#     res = add_subaction_with_task(parent_action, action_type)
+#     return res
 
 
 # result: the iri of the subaction. e.g. http://www.ontologydesignpatterns.org/ont/dul/DUL.owl#Action_PBKJOHZG'
@@ -91,59 +91,56 @@ def neem_class_decorator(cls):
     # --- CREATES NEEM AT ACTION CREATION TIME ---
     @functools.wraps(original_init)
     def new_init(self, *args, **kwargs):
-        global parent_action, current_action, ont  # ont is an IRI
+        global parent_action, current_action
         # Ensures initialization is done once when an object is created
         initialize_neem()
         original_init(self, *args, **kwargs)  # Call the original __init__
         rospy.loginfo(PC.PINK + f"[NEEM] Initializing object of class {cls.__name__}" + PC.GREY)
-        if isinstance(self, NavigateActionPerformable):
-            rospy.loginfo(PC.RED + f"[NEEM] NavigateActionPerformable: {self.__dict__}" + PC.GREY)
+        current_action_description_instance = None
+        if isinstance(self, NavigateAction):
+            #rospy.loginfo(PC.RED + f"[NEEM] NavigateActionPerformable: {self.__dict__}" + PC.GREY)
 
-            if isinstance(self, NavigateAction) or isinstance(self, NavigateAction):
+            if isinstance(self, NavigateAction):
                 rospy.loginfo(PC.GREEN + "[NEEM] NavigateAction detected" + PC.GREY)
-                current_action, current_action_design_instance = add_subaction_with_task(parent_action=parent_action,
-                                                                                         action_type=ont.soma.Navigating.iri)
-                add_participant_with_role(current_action, robot, ont.soma.AgentRole.iri)
+                current_action, current_action_description_instance = add_subaction_with_task(parent_action=parent_action,
+                                                                                         task_type="soma:Navigating")
+                add_participant_with_role(current_action, robot, "soma:AgentRole")
                 # todo add goal which is the location designator
                 # self.target_locations
                 # create an instance of a location
-                loc_inst = make_instance_of(ont.soma.Location.iri)
+                loc_inst = make_instance_of("soma:Location")
                 # connect location instance to action as goal
-                triple(current_action, ont.soma.hasGoal.iri, loc_inst)  # add a pose
+                triple(current_action, "soma:hasGoal", loc_inst)  # add a pose
 
                 # --- DESCRIPTION START ---
                 # process location designator within the action designator
-                for attr_name, attr_value in self.action_instance.__dict__.items():
+                for attr_name, attr_value in self.__dict__.items():
                     # this is location designator specific todo test if only for my locdesig or generally for all of them
-                    if isinstance(attr_value, Location):
-                        rospy.loginfo(
-                            PC.YELLOW + f"[NEEM] Found location designator: {attr_name} + {attr_value} " + PC.GREY)
+                    rospy.loginfo(PC.YELLOW + f"[NEEM] processing attribute: {attr_name} + {attr_value} " + PC.GREY)
+                    if isinstance(attr_value, Location): # account for a Location Designator being given as a position
+                        rospy.loginfo(PC.YELLOW + f"[NEEM] Found location designator: {attr_name} + {attr_value} " + PC.GREY)
 
                         # take care of ObjectDesignatorDescriptions within the LocationDesignatorDescription
                         param_list = {}
                         for item_name in attr_value.kwargs:
                             item = attr_value.kwargs.get(item_name)
-                            rospy.loginfo(
-                                PC.GREEN + f"[NEEM] Processing: {item_name} value: {item}" + PC.GREY)
+                            rospy.loginfo(PC.GREEN + f"[NEEM] Processing: {item_name} value: {item}" + PC.GREY)
                             if isinstance(item, ObjectDesignatorDescription):
-                                rospy.loginfo(
-                                    PC.GREEN + f"[NEEM] Processing ObjectDesignatorDescription Parameter within LocationDesignatorDescription" + PC.GREY)
+                                rospy.loginfo(PC.GREEN + f"[NEEM] Processing ObjectDesignatorDescription Parameter within LocationDesignatorDescription" + PC.GREY)
                                 # add object designator to NEEM
                                 obj_desig_design = add_object_designator_description(item)
                                 param_list[item_name] = obj_desig_design
-                                rospy.loginfo(
-                                    PC.GREEN + f"[NEEM] Done Processing ObjectDesignatorDescription Parameter within LocationDesignatorDescription: {obj_desig_design}" + PC.GREY)
+                                rospy.loginfo(PC.GREEN + f"[NEEM] Done Processing ObjectDesignatorDescription Parameter within LocationDesignatorDescription: {obj_desig_design}" + PC.GREY)
                             else:
-                                rospy.loginfo(
-                                    PC.YELLOW + f"[NEEM] Not an instance of ObjectDesignatorDescription: {item}. Moving On." + PC.GREY)
+                                rospy.loginfo(PC.YELLOW + f"[NEEM] Not an instance of ObjectDesignatorDescription: {item}. Moving On." + PC.GREY)
                         # add all the parameters to the location designator description instance
                         rospy.loginfo(
                             PC.GREEN + f"[NEEM] Adding all parameters to LocationDesignatorDescription instance: {param_list}" + PC.GREY)
                         loc_desig_desc_instance = add_location_designator_description(param_list)
                         # add location desig description instance to the action
-                        triple(current_action_design_instance, ont.soma.hasGoal.iri, loc_desig_desc_instance)
-                        triple(current_action_design_instance, f"soma:'hasLocation'", loc_desig_desc_instance)
-                        self.action_designator_design_id = current_action_design_instance
+                        triple(current_action_description_instance, "soma:hasGoal", loc_desig_desc_instance)
+                        triple(current_action_description_instance, "soma:hasLocation", loc_desig_desc_instance)
+
                         rospy.loginfo(
                             PC.GREEN + f"[NEEM] Done Processing LocationDesignatorDescription Parameter within LocationDesignatorDescription: {loc_desig_desc_instance}" + PC.GREY)
                         # --- DESCRIPTION END ---
@@ -152,8 +149,20 @@ def neem_class_decorator(cls):
                         resolved_location_designator = attr_value.ground()  # Location.ground()
                         resolved_desig = add_resolved_location_designator(resolved_location_designator,
                                                                           loc_desig_desc_instance)
-                        rospy.loginfo(
-                            PC.GREEN + f"[NEEM] Done processing LocationDesignator: {resolved_desig}" + PC.GREY)
+                        rospy.loginfo(PC.GREEN + f"[NEEM] Done processing LocationDesignator: {resolved_desig}" + PC.GREY)
+
+                    if isinstance(attr_value, list) and attr_name.__contains__("target_location"):
+                        rospy.loginfo(PC.GREEN + f"[NEEM] list of poses detected" + PC.GREY)
+                        # log Navigation Designator if only the pose is given instead of a Location Designator
+                        # make location instance
+                        add_location_with_poses_list(current_action_description_instance, attr_value)
+                        # --- DESCRIPTION END ---
+                        # --- RESOLVE START ---
+                # fallback if action type could not be matched
+                if current_action_description_instance is None:
+                    current_action, current_action_description_instance = add_subaction_with_task(parent_action=parent_action,
+                                                                                                  task_type="soma:Action")
+                self.action_designator_description_id = current_action_description_instance
                 # --- RESOLVE END ---
 
                 # Wrap resolve and perform methods of ActionDesignator to log them
@@ -177,12 +186,12 @@ def log_method(method, action_designator, method_name):
             # todo add type specific handling
             rospy.loginfo(PC.PINK + f"[NEEM] Starting {method_name} on {action_designator.__dict__}" + PC.GREY)
             # connect to parent e.g. design e.g. ActionDescription
-            action_designator_design_id = action_designator.action_designator_design_id
-            action_id = create_action_id()
-            triple(action_designator_design_id, f"dul:expresses", action_id)
+            action_designator_description_id = action_designator.action_designator_description_id
+            action_id = create_action_id(action_designator)
+            triple(action_designator_description_id, f"dul:expresses", action_id)
             resolved_action = method(*args, **kwargs)  # actually resolve the designator
             resolved_action.action_id = action_id
-            resolved_action.action_designator_design_id = action_designator_design_id
+            resolved_action.action_designator_description_id = action_designator_description_id
             target_location = make_instance_of("soma:Location")
             pose_array = [resolved_action.target_location.header.frame_id] + resolved_action.target_location.to_list()
             add_pose_to_instance(target_location, pose_array)
@@ -255,11 +264,11 @@ def reset_neem():
 
 
 # --- NEEM queries ----
-def get_longest_event():
-    result = kb.kb.prolog_client.all_solutions(f"findall([Duration, Evt],"
-                                               f"(event_interval(Evt, Begin, End),"
-                                               f"number(End),"
-                                               f"Duration is End - Begin),"
-                                               f"Durations),"
-                                               f"max_member([MaxDuration, LongestEvt], Durations).")
-    return result
+# def get_longest_event():
+#     result = prolog_client.all_solutions(f"findall([Duration, Evt],"
+#                                                f"(event_interval(Evt, Begin, End),"
+#                                                f"number(End),"
+#                                                f"Duration is End - Begin),"
+#                                                f"Durations),"
+#                                                f"max_member([MaxDuration, LongestEvt], Durations).")
+#     return result

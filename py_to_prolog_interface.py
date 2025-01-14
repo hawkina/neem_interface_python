@@ -58,7 +58,7 @@ def stop_episode(neem_path: str, end_time: float = None):
         f"mem_episode_stop({atom(neem_path)}, {end_time if end_time is not None else time.time()})")
 
 
-def add_subaction_with_task(parent_action, task_type="dul:'Task'", sub_action_type="dul:'Action'",
+def add_subaction_with_task(parent_action, task_type="dul:'Task'",
                             start_time: float = None, end_time: float = None) -> str:
     """
     Assert a subaction of a given type, and an associated task of a given type.
@@ -67,8 +67,8 @@ def add_subaction_with_task(parent_action, task_type="dul:'Task'", sub_action_ty
     solution = knowrob_client.once(q)
     action_iri = solution["SubAction"]
     action_designator_design_iri = knowrob_client.once(
-        f"kb_project([new_iri(ActionDesigDesc, 'http://www.ease-crc.org/ont/SOMA-CRAM.owl#Action_Designator_Design'),"
-        f"has_type(ActionDesigDesc, 'http://www.ease-crc.org/ont/SOMA-CRAM.owl#Action_Designator_Design'),"
+        f"kb_project([new_iri(ActionDesigDesc, croma:'ActionDesignatorDescription'),"
+        f"has_type(ActionDesigDesc, croma:'ActionDesignatorDescription'),"
         f"triple(ActionDesigDesc, dul:'describes', {atom(action_iri)})]),"
         f"instance_of(ActionDesigDesc, Class).")
 
@@ -86,8 +86,8 @@ def belief_perceived_at(object_type, mesh, position, rotation):
 
 
 def create_action_id(self):
-    res = knowrob_client.once(f"kb_project([new_iri(ActionDesig, soma_cram:'Action_Designator'),"
-                                  f"has_type(ActionDesig, soma_cram:'Action_Designator')])")
+    res = knowrob_client.once(f"kb_project([new_iri(ActionDesig, croma:'ActionDesignator'),"
+                                  f"has_type(ActionDesig, croma:'ActionDesignator')])")
     return res["ActionDesig"]
 
 
@@ -276,8 +276,8 @@ def add_object_designator_description(object_designator_description):
         query_part = ""
 
     res = knowrob_client.once(
-        f"kb_project([new_iri(ObjectDesigDesc, 'http://www.ease-crc.org/ont/SOMA-CRAM.owl#Object_Designator_Design'), "
-        f"has_type(ObjectDesigDesc, 'http://www.ease-crc.org/ont/SOMA-CRAM.owl#Object_Designator_Design'),"
+        f"kb_project([new_iri(ObjectDesigDesc, croma:'ObjectDesignator'), " # Description?
+        f"has_type(ObjectDesigDesc, croma:'ObjectDesignator'),"
         f"new_iri(PhysicalObject, dul:'PhysicalObject'), has_type(PhysicalObject, dul:'PhysicalObject'),"
         f"triple(ObjectDesigDesc, dul:'describes', PhysicalObject),"
         f"{query_part}]),"
@@ -302,20 +302,20 @@ def add_location_designator_description(dict_of_object_designator_descriptions):
     furniture_item, room = None, None
     if dict_of_object_designator_descriptions.get("furniture_item"):
         furniture_item = dict_of_object_designator_descriptions.get("furniture_item")
-        information_furniture_item = self.add_information_object(furniture_item)
+        information_furniture_item = add_information_object(furniture_item)
         query_part += f", triple(LocationDesigDesc, dul:'isExpressedBy', {atom(information_furniture_item)})"
 
     if dict_of_object_designator_descriptions.get("room"):
         room = dict_of_object_designator_descriptions.get("room")
-        information_room = self.add_information_object(room)
+        information_room = add_information_object(room)
         query_part += f", triple(LocationDesigDesc, dul:'isExpressedBy', {atom(information_room)})"
 
     if furniture_item and room:
         query_part += f", triple({atom(furniture_item)}, soma:'isInsideOf', {atom(room)})"
     # build query parts of the parameters given above
     res = knowrob_client.once(
-        f"kb_project([new_iri(LocationDesigDesc, 'http://www.ease-crc.org/ont/SOMA-CRAM.owl#Location_Designator_Design'), "
-        f"has_type(LocationDesigDesc, 'http://www.ease-crc.org/ont/SOMA-CRAM.owl#Location_Designator_Design'),"
+        f"kb_project([new_iri(LocationDesigDesc, croma:'LocationDesignatorDescription'), " # description
+        f"has_type(LocationDesigDesc, croma:'LocationDesignatorDescription'),"
         f"new_iri(Location, soma:'Location'), has_type(Location, soma:'Location'),"
         f"triple(LocationDesigDesc, 'http://www.ease-crc.org/ont/SOMA.owl#hasLocation', Location)"
         f"{query_part}]),"
@@ -342,7 +342,7 @@ def add_resolved_location_designator(resolved_location_designator, location_desi
         f"kb_project([new_iri(ResolvedLocationDesig, 'http://www.ease-crc.org/ont/SOMA-CRAM.owl#Location_Designator'), "
         f"has_type(ResolvedLocationDesig, 'http://www.ease-crc.org/ont/SOMA-CRAM.owl#Location_Designator'),"
         f"triple(ResolvedLocationDesig, dul:'expresses', {atom(location_designator_description_iri)}),"
-        f"triple({atom(location_designator_description_iri)}, soma_cram:'resolved_to', ResolvedLocationDesig),"
+        f"triple({atom(location_designator_description_iri)}, croma:'resolved_to', ResolvedLocationDesig),"
         f"new_iri(Location, soma:'Location'), has_type(Location, soma:'Location')]),"
         f"instance_of(Location, LocClass)"
         f"{all_poses_query_part} "
@@ -351,6 +351,23 @@ def add_resolved_location_designator(resolved_location_designator, location_desi
     # todo: fix return result to be the ID of the Location Designator
     return res["ResolvedLocationDesig"]
 
+def add_location_with_poses_list(action_iri, poses_list):
+    all_poses_array = []
+    all_poses_query_part = ", "
+    # todo: log all possible poses as the outcome of designator resolution
+    for pose in poses_list:
+        pose_array = [pose.frame, pose.position_as_list(), pose.orientation_as_list()]
+        all_poses_array.append(pose_array)
+        all_poses_query_part += f"kb_project(([new_iri(PoseObj, soma:'6DPose'), has_type(PoseObj, soma:'6DPose')," \
+                                f"triple(Location, soma:'hasLocation', PoseObj)]))," \
+                                f"time_scope('{rospy.rostime.get_time()}', '{rospy.rostime.get_time()}', Scope)," \
+                                f"tf_set_pose(PoseObj, {pose_array}, Scope),"
+    res = knowrob_client.once(
+        f"kb_project([new_iri(ALocation, soma:'Location'), has_type(ALocation, soma:'Location')]),"
+        f"triple({atom(action_iri)}, soma:'hasGoal', ALocation)"
+        f"{all_poses_query_part}"
+        f"instance_of(ALocation, LocClass).")
+    return res
 
 # class Episode:
 #     """
