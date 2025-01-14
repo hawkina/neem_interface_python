@@ -1,7 +1,7 @@
 import rospy
 from json_prolog_msgs.srv import PrologQuery, PrologNextSolution, PrologFinish, PrologQueryRequest, PrologNextSolutionRequest, PrologFinishRequest
 from typing import Iterator, Dict, List, Optional
-#import pycram.external_interfaces.knowrob_designator_client as kdc
+
 
 """
 This is the ROS Prolog Client which connects to the Rosprolog service of (old) KnowRob.
@@ -50,6 +50,8 @@ class PrologQueryWrapper:
                     yield self._json_to_dict(response.solution)
                 elif response.status == response.NO_SOLUTION:
                     break
+                elif response.status == response.QUERY_FAILED:
+                    raise Exception(f"Prolog query failed: {response}")
                 else:
                     raise Exception(f"Unknown query status {response.status}")
         finally:
@@ -96,6 +98,7 @@ class Prolog:
         # differenciate between fallschool designator queries and normal prolog
         #if "type=" in query_str:
         #    return kdc.send_simple_query(query_str)
+        print(f"Query Once: {query_str}")
         with PrologQueryWrapper(query_str, self._simple_query_srv, self._next_solution_srv, self._finish_query_srv) as query:
             try:
                 solution = next(query.solutions())
@@ -111,6 +114,7 @@ class Prolog:
         # differenciate between fallschool designator queries and normal prolog
         #if "type=" in query_str:
         #    return kdc.send_simple_query(query_str)
+        #print(f"{query_str}")
         with PrologQueryWrapper(query_str, self._simple_query_srv, self._next_solution_srv, self._finish_query_srv, iterative=False) as query:
             solution = list(query.solutions())
             if 0 == len(solution):
