@@ -7,7 +7,6 @@ from tqdm import tqdm
 
 from neem_interface_python.rosprolog_client import Prolog
 from neem_interface_python.utils import atom
-# from rosprolog_client import Prolog, PrologException
 from neem_interface_python.utils.utils import Datapoint, Pose
 
 """
@@ -42,8 +41,8 @@ def start_episode(task_type: str, env_owl: str, env_owl_ind_name: str, env_urdf:
     #     f"{atom(agent_owl)}, {atom(agent_owl_ind_name)}, {atom(agent_urdf)}," \
     #     f"{start_time if start_time is not None else time.time()})"
     q = f"mem_episode_start(Action, {atom(env_owl)}, {atom(env_owl_ind_name)}, {atom(env_urdf)}," \
-        f"{atom(env_urdf_prefix)},{atom(agent_owl)}, {atom(agent_owl_ind_name)}, {atom(agent_urdf)}" \
-        f")."
+        f"{atom(env_urdf_prefix)},{atom(agent_owl)}, {atom(agent_owl_ind_name)}, {atom(agent_urdf)})" \
+        f", ros_logger_start."
     # f"{start_time if start_time is not None else time.time()})"
 
     res = knowrob_client.once(q)
@@ -55,7 +54,7 @@ def stop_episode(neem_path: str, end_time: float = None):
     End the current episode and save the NEEM to the given path
     """
     return knowrob_client.once(
-        f"mem_episode_stop({atom(neem_path)}, {end_time if end_time is not None else time.time()})")
+        f"mem_episode_stop({atom(neem_path)}, {end_time if end_time is not None else time.time()}), ros_logger_stop.")
 
 
 def add_subaction_with_task(parent_action, task_type="dul:'Task'",
@@ -63,7 +62,7 @@ def add_subaction_with_task(parent_action, task_type="dul:'Task'",
     """
     Assert a subaction of a given type, and an associated task of a given type.
     """
-    q = f"add_subaction_with_task({atom(parent_action)}, {atom(task_type)}, SubAction)"
+    q = f"add_subaction_with_task({atom(parent_action)}, {atom(task_type)}, SubAction)."
     solution = knowrob_client.once(q)
     action_iri = solution["SubAction"]
     action_designator_design_iri = knowrob_client.once(
@@ -85,11 +84,27 @@ def belief_perceived_at(object_type, mesh, position, rotation):
     return res
 
 
-def create_action_id(self):
+def create_action_id():
     res = knowrob_client.once(f"kb_project([new_iri(ActionDesig, croma:'ActionDesignator'),"
                                   f"has_type(ActionDesig, croma:'ActionDesignator')])")
     return res["ActionDesig"]
 
+def create_action_resolved_id():
+    res = knowrob_client.once(f"kb_project([new_iri(ActionDesig, croma:'ActionDesignatorResolved'),"
+                                  f"has_type(ActionDesig, croma:'ActionDesignatorResolved')])")
+    return res["ActionDesig"]
+
+def create_action_performed_id():
+    res = knowrob_client.once(f"kb_project([new_iri(ActionDesig, croma:'ActionDesignatorPerformed'),"
+                                  f"has_type(ActionDesig, croma:'ActionDesignatorPerformed')])")
+    return res["ActionDesig"]
+
+def create_robot(robot_name, robot_type):
+    res = knowrob_client.once(f"kb_project([new_iri(Robot, croma:'Robot'),"
+                                    f"has_type(Robot, croma:'Robot'),"
+                                    f"triple(Robot, soma:'hasNameString', {atom(robot_name)}),"
+                                    f"triple(Robot, dul:'classifies', {atom(robot_type)})]).")
+    return res["Robot"]
 
 def add_participant_with_role(action: str, participant: str, role_type="dul:'Role'") -> None:
     """
@@ -119,7 +134,7 @@ def assert_tf_trajectory(points: List[Datapoint]):
                 tf_set_pose({atom(point.frame)}, {ee_pose_str}, QS).
             """)
 
-
+# test
 def assert_transition(agent_iri: str, object_iri: str, start_time: float, end_time: float) -> Tuple[
     str, str, str]:
     res = knowrob_client.once(f"""
@@ -148,7 +163,7 @@ def assert_transition(agent_iri: str, object_iri: str, start_time: float, end_ti
     terminal_state_iri = res["TerminalState"]
     return transition_iri, initial_state_iri, terminal_state_iri
 
-
+#test
 def assert_agent_with_effector(effector_iri: str, agent_type="dul:'PhysicalAgent'", agent_iri: str = None) -> str:
     if agent_iri is None:
         agent_iri = knowrob_client.once(f"""
@@ -158,7 +173,7 @@ def assert_agent_with_effector(effector_iri: str, agent_type="dul:'PhysicalAgent
     knowrob_client.once(f"kb_project(has_end_link({atom(agent_iri)}, {atom(effector_iri)}))")
     return agent_iri
 
-
+#test
 def assert_state(participant_iris: List[str], start_time: float = None, end_time: float = None,
                  state_class="soma:'State'", state_type="soma:'StateType'") -> str:
     state_iri = knowrob_client.once(f"""
@@ -174,7 +189,7 @@ def assert_state(participant_iris: List[str], start_time: float = None, end_time
         knowrob_client.once(f"kb_project(has_participant({atom(state_iri)}, {atom(iri)}))")
     return state_iri
 
-
+#test
 def assert_situation(agent_iri: str, involved_objects: List[str], situation_type="dul:'Situation'") -> str:
     situation_iri = knowrob_client.once(f"""
             kb_project([
@@ -239,7 +254,7 @@ def get_wrench_trajectory(obj: str, start_timestamp: float, end_timestamp: float
     res = knowrob_client.once(f"wrench_mng_trajectory({atom(obj)}, {start_timestamp}, {end_timestamp}, Trajectory)")
     return res["Trajectory"]
 
-
+# --- New functions for the NEEM interface ---
 # generic workaround
 def triple(subject, predicate, obj):
     rospy.loginfo(f"Adding triple: {subject}, {predicate}, {obj}")
@@ -255,14 +270,14 @@ def make_instance_of(class_iri):
 
 def add_pose_to_instance(instance, pose_array):  # instance of Location
     res = knowrob_client.once(f"kb_project(([new_iri(PoseObj, soma:'6DPose'), has_type(PoseObj, soma:'6DPose'),"
-                                  f"triple({atom(instance)}, 'http://www.ease-crc.org/ont/SOMA.owl#hasLocation', PoseObj)])),"
+                                  f"triple({atom(instance)}, soma:'hasLocation', PoseObj)])),"
                                   f"time_scope({rospy.rostime.get_time()}, {rospy.rostime.get_time()}, Scope),"
                                   f"tf_set_pose(PoseObj, {pose_array}, Scope).")
     return res
 
 
 def add_object_designator_description(object_designator_description):
-    # TODO ensure existance ob obj_designator_name
+    # TODO ensure existence ob obj_designator_name
     # ensure name exists
     if len(object_designator_description.names[0]) > 0:
         name = object_designator_description.names[0]
@@ -286,6 +301,7 @@ def add_object_designator_description(object_designator_description):
 
 
 # an information object in this case is an IRI of an object designator description
+# ??? is this an addition to the above object designator description qualification?
 def add_information_object(information_object):
     res = knowrob_client.once(f"kb_project([new_iri(InformationObject, dul:'Information_Object'), "
                                   f"has_type(InformationObject, dul:'Information_Object'),"
@@ -317,13 +333,13 @@ def add_location_designator_description(dict_of_object_designator_descriptions):
         f"kb_project([new_iri(LocationDesigDesc, croma:'LocationDesignatorDescription'), " # description
         f"has_type(LocationDesigDesc, croma:'LocationDesignatorDescription'),"
         f"new_iri(Location, soma:'Location'), has_type(Location, soma:'Location'),"
-        f"triple(LocationDesigDesc, 'http://www.ease-crc.org/ont/SOMA.owl#hasLocation', Location)"
+        f"triple(LocationDesigDesc, soma:'hasLocation', Location)"
         f"{query_part}]),"
         f"instance_of(LocationDesigDesc, Class)."
         )
     return res["LocationDesigDesc"]
 
-
+# todo adjust
 def add_resolved_location_designator(resolved_location_designator, location_designator_description_iri):
     all_possible_poses = resolved_location_designator.poses
     all_poses_array = []
