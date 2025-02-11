@@ -2,6 +2,7 @@ from typing import List
 import re
 from scipy.spatial.transform import Rotation
 import dateutil.parser
+import inspect
 
 
 def atom(string: str):
@@ -105,3 +106,52 @@ class Datapoint:
         x, y, z, w = ori_lhs
         ori_rhs = Rotation.from_quat([-x, y, -z, w])
         return Datapoint(timestamp, frame, reference_frame, pos_rhs, ori_rhs)
+
+
+# utility function for mapping of action designators
+# returns a list of possible deisgnator names
+def get_classes_from_file(module):
+    # Get all members of the module
+    members = inspect.getmembers(module, inspect.isclass)
+    # Filter out only the classes defined in the module
+    classes = [member[0] for member in members if
+               member[1].__module__ == module.__name__ and "performable" not in member[0].lower()]
+    return classes
+
+
+def autogenerate_class_name_to_class(module):
+    # Get all members of the module
+    members = inspect.getmembers(module, inspect.isclass)
+    # Create a dictionary mapping class names to class objects
+    class_name_to_class = {member[0]: member[1] for member in members if member[1].__module__ == module.__name__}
+    return class_name_to_class
+
+
+import inspect
+
+
+def get_classes_and_parameters_from_file(module):
+    # Get all members of the module
+    members = inspect.getmembers(module, inspect.isclass)
+
+    # Filter out only the classes defined in the module that do not have "performable" in their name
+    classes = [member for member in members if
+               member[1].__module__ == module.__name__ and "performable" not in member[0].lower()]
+
+    class_info = []
+    for class_name, class_obj in classes:
+        # Get the __init__ method parameters
+        init_method = class_obj.__init__
+        params = inspect.signature(init_method).parameters
+
+        param_info = []
+        for param_name, param_obj in params.items():
+            if param_name != 'self':
+                # Get the docstring for each parameter
+                param_doc = param_obj.annotation.__doc__ if param_obj.annotation else None
+                param_info.append((param_name, param_doc))
+
+        class_info.append((class_name, param_info))
+
+    return class_info
+
