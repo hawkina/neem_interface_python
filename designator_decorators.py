@@ -65,7 +65,19 @@ def action_logger(cls):
             "PerceptionAction": log_perception_action_creation,
             "TransportingAction": log_transporting_action_creation
         }
-        return action
+        # check for Class of Action and map it to the corresponding logging function
+        class_name = action.__class__.__name__
+        if "Performable" in class_name:
+            rospy.loginfo(PC.GREY + f"[NEEM] Performable of type {class_name}. Won't be logged on creation." + PC.GREY)
+            return action
+
+        elif class_name not in class_method_log_map:
+            rospy.loginfo(PC.RED + f"[NEEM] Unknown Action Type: {class_name}. Action won't be logged." + PC.GREY)
+            return  action # If the class is not in the map, do nothing
+
+        else: # if the class is in the map, call the corresponding logging function
+            class_method_log_map[class_name](action)
+            return action
 
     def wrap_methods(self):
         """Wraps resolve() and perform() for logging, based on the action class."""
@@ -81,6 +93,7 @@ def action_logger(cls):
 
         class_name = self.__class__.__name__
         if class_name not in class_method_log_map:
+            rospy.loginfo(PC.RED + f"[NEEM] Unknown Action Type: {class_name}. Action won't be logged." + PC.GREY)
             return  # If the class is not in the map, do nothing
 
         for method_name, log_function in class_method_log_map[class_name].items():
