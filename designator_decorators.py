@@ -1,6 +1,8 @@
 import rospy
+from dill.pointers import parent
 
-from neem_interface_python.neem_generation import *
+from neem_interface_python.low_level_queries_wrappers import *
+from neem_interface_python.neem_generation import start_episode
 from neem_interface_python.py_to_prolog_interface import init_neem_interface
 from pycram.designators.action_designator import *
 import functools
@@ -21,17 +23,21 @@ def init_neem():
     action_logger(NavigateActionPerformable)
     # todo: does it make sense to have this here or maybe have it separated?
     # init everything else
-    # global initialized
-    # if not initialized:
-    #     rospy.loginfo(PC.GREEN + "[NEEM] Initializing connection..." + PC.GREY)
-    #     # Your initialization logic here, e.g., establishing connection
-    #     init_neem_interface()
-    #     start_episode()
-    #     initialized = True
-    #     create_robot("Raphael", "PR2")
-    #     #neem_class_decorator(NavigateAction)
-    #     #neem_class_decorator(NavigateActionPerformable)
-    #     rospy.loginfo(PC.GREEN + "[NEEM] Connection established." + PC.GREY)
+    global initialized
+    if not initialized:
+        rospy.loginfo(PC.GREEN + "[NEEM] Initializing connection..." + PC.GREY)
+        # Your initialization logic here, e.g., establishing connection
+        init_neem_interface()
+        rospy.loginfo(PC.GREEN + f"[NEEM] Root Action: {root_action}." + PC.GREY)
+        parent_action = start_episode()
+        initialized = True
+        #create_robot("Raphael", "PR2")
+        #neem_class_decorator(NavigateAction)
+        #neem_class_decorator(NavigateActionPerformable)
+        rospy.loginfo(PC.GREEN + "[NEEM] Connection established." + PC.GREY)
+        return parent_action
+
+
 
 
 
@@ -44,13 +50,29 @@ def action_logger(cls):
 
     def init_logging(self, *args, **kwargs):
         """Logs object creation and calls original __init__."""
-        rospy.loginfo(PC.GREEN + f"[NEEM] Logging {self.__class__.__name__} instance" + PC.GREY)
+        # global initialized
+        # if not initialized:
+        #     rospy.loginfo(PC.GREEN + "[NEEM] Initializing connection..." + PC.GREY)
+        #     # Your initialization logic here, e.g., establishing connection
+        #     init_neem_interface()
+        #     rospy.loginfo(PC.GREEN + f"[NEEM] Root Action: {root_action}." + PC.GREY)
+        #     parent_action = start_episode()
+        #     initialized = True
+        #     # create_robot("Raphael", "PR2")
+        #     # neem_class_decorator(NavigateAction)
+        #     # neem_class_decorator(NavigateActionPerformable)
+        #     rospy.loginfo(PC.GREEN + "[NEEM] Connection established." + PC.GREY)
+        #     #create_robot(robot_name = "raphael", robot_type = "PR2")
+        #     self.parent_action = parent_action # todo find a better way to store the parent action
 
-        # Call class-specific logging function if available
-        log_action_creation(self)
+
+        rospy.loginfo(PC.GREEN + f"[NEEM] Logging {self.__class__.__name__} instance" + PC.GREY)
 
         # Call the original __init__ method
         original_init(self, *args, **kwargs)
+
+        # Call class-specific logging function if available
+        log_action_creation(self)
 
         # Wrap class-specific methods dynamically **after initialization**
         wrap_methods(self)
@@ -67,10 +89,12 @@ def action_logger(cls):
         }
         # check for Class of Action and map it to the corresponding logging function
         class_name = action.__class__.__name__
+        # we log the performables after the resolution since otherwise they would be identical to the description
         if "Performable" in class_name:
             rospy.loginfo(PC.GREY + f"[NEEM] Performable of type {class_name}. Won't be logged on creation." + PC.GREY)
             return action
 
+        # if the class is not in the map, do nothing but tell the user that it won't be logged
         elif class_name not in class_method_log_map:
             rospy.loginfo(PC.RED + f"[NEEM] Unknown Action Type: {class_name}. Action won't be logged." + PC.GREY)
             return  action # If the class is not in the map, do nothing
@@ -118,6 +142,8 @@ def action_logger(cls):
 
 # --- Creation Action Logging ---
 def log_navigate_action_creation(action):
+    #rospy.loginfo(PC.GREEN + f"[NEEM] NavigationAction creation in progress...: {action.__dict__}" + PC.GREY)
+    query_log_navigate_action_description(action)
     rospy.loginfo(PC.GREEN + f"[NEEM] NavigationAction created: {action}" + PC.GREY)
     return action
 

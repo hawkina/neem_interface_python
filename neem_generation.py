@@ -36,22 +36,23 @@ agent_owl_ind_name = "http://knowrob.org/kb/PR2.owl#PR2_0"
 agent_urdf = "package://knowrob/urdf/pr2.urdf"
 neem_output_path = "/home/hawkin/ros_ws/neems_library/serve_breakfast_neems/"
 start_time = None
-root_action = ""  # remove later
-
+root_action = ""  # remove later TODO: find a good parent action
+parent_action = None
 #### temp. remove later ####
 transporting = "http://www.ease-crc.org/ont/SOMA.owl#Transporting"
 # toya = "http://www.ease-crc.org/ont/SUTURO.owl#ToyotaHSR_IAMTOYA"
-robot = "http://www.ease-crc.org/ont/SUTURO.owl#PR2_0"
-
+#robot_instance = f"http://www.ease-crc.org/ont/CROMA.owl#" + World.robot.name
+robot_instance = f"http://www.ease-crc.org/ont/CROMA.owl#" + "PR2_0"
 # internal?
 def start_episode():
-    global root_action
+    global parent_action
 
     res = py_to_prolog_interface.start_episode(task_type, env_owl, env_owl_ind_name, env_urdf,
                         env_urdf_prefix, agent_owl,
                         agent_owl_ind_name, agent_urdf)
-    root_action = res
-    return root_action
+    parent_action = res
+    print(f"root_action: {parent_action}")
+    return parent_action
 
 
 def stop_and_dump_episode():
@@ -62,7 +63,7 @@ def stop_and_dump_episode():
 # ---------------- Automation of calling the NEEM interface ----------------
 # Flag to track initialization state
 initialized = False
-parent_action = root_action
+#parent_action = root_action
 current_action = None
 
 
@@ -84,7 +85,7 @@ def initialize_neem():  # done
 def log_NavigateActionDescription(action):
     current_action, current_action_description_instance = add_subaction_with_task(parent_action=parent_action,
                                                                                   task_type="soma:Navigating")
-    add_participant_with_role(current_action, robot, "soma:AgentRole")
+    add_participant_with_role(current_action, robot_instance, "soma:AgentRole")
     # create an instance of a location
     loc_inst = make_instance_of("soma:Location")
     # connect location instance to action as goal
@@ -225,7 +226,7 @@ def log_method(method, action_designator, method_name):
             performed_id = create_action_performed_id()
             action_begin(performed_id)  # double check if needed
             rospy.loginfo(PC.GREEN + f"[NEEM] Starting {method_name} on {action_designator}" + PC.GREY)
-            triple(robot, "soma:performs", performed_id)
+            triple(robot_instance, "soma:performs", performed_id)
 
             # Call the original method and log the result -> use task tree
             result = method(*args, **kwargs)

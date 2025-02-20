@@ -41,8 +41,8 @@ def start_episode(task_type: str, env_owl: str, env_owl_ind_name: str, env_urdf:
     #     f"{atom(agent_owl)}, {atom(agent_owl_ind_name)}, {atom(agent_urdf)}," \
     #     f"{start_time if start_time is not None else time.time()})"
     q = f"mem_episode_start(Action, {atom(env_owl)}, {atom(env_owl_ind_name)}, {atom(env_urdf)}," \
-        f"{atom(env_urdf_prefix)},{atom(agent_owl)}, {atom(agent_owl_ind_name)}, {atom(agent_urdf)})" \
-        f", ros_logger_start."
+        f"{atom(env_urdf_prefix)},{atom(agent_owl)}, {atom(agent_owl_ind_name)}, {atom(agent_urdf)})," \
+        f"ros_logger_start." # todo bugged ???
     # f"{start_time if start_time is not None else time.time()})"
 
     res = knowrob_client.once(q)

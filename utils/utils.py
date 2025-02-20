@@ -3,6 +3,7 @@ import re
 from scipy.spatial.transform import Rotation
 import dateutil.parser
 import inspect
+from pycram.datastructures.dataclasses import Pose
 
 
 def atom(string: str):
@@ -155,3 +156,6 @@ def get_classes_and_parameters_from_file(module):
 
     return class_info
 
+def pose_to_string(pose):
+    """Convert the given Pose to an array of strings for KnowRob"""
+    return [pose.frame, pose.position_as_list(), pose.orientation_as_list()]
