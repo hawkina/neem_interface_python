@@ -13,6 +13,7 @@ import functools
 # ---------------- Automation of calling the NEEM interface ----------------
 # Flag to track initialization state
 initialized = False
+action_stack = []
 
 # todo: this might move somewhere else or only contain the mapping of the decorators to classes
 def init_neem():
@@ -23,19 +24,21 @@ def init_neem():
     action_logger(NavigateActionPerformable)
     # todo: does it make sense to have this here or maybe have it separated?
     # init everything else
-    global initialized
+    global initialized, action_stack # TODO find a better way to store the parent action
     if not initialized:
         rospy.loginfo(PC.GREEN + "[NEEM] Initializing connection..." + PC.GREY)
         # Your initialization logic here, e.g., establishing connection
         init_neem_interface()
-        rospy.loginfo(PC.GREEN + f"[NEEM] Root Action: {root_action}." + PC.GREY)
-        parent_action = start_episode()
+
+        root_action_id = start_episode()
+        rospy.loginfo(PC.GREEN + f"[NEEM] Root Action: {root_action_id}." + PC.GREY)
         initialized = True
         #create_robot("Raphael", "PR2")
         #neem_class_decorator(NavigateAction)
         #neem_class_decorator(NavigateActionPerformable)
         rospy.loginfo(PC.GREEN + "[NEEM] Connection established." + PC.GREY)
-        return parent_action
+        action_stack.append(root_action_id)
+        return action_stack
 
 
 
@@ -71,6 +74,8 @@ def action_logger(cls):
         # Call the original __init__ method
         original_init(self, *args, **kwargs)
 
+        # add parent action to class
+        #self.parent_action = parent_action
         # Call class-specific logging function if available
         log_action_creation(self)
 
@@ -143,7 +148,7 @@ def action_logger(cls):
 # --- Creation Action Logging ---
 def log_navigate_action_creation(action):
     #rospy.loginfo(PC.GREEN + f"[NEEM] NavigationAction creation in progress...: {action.__dict__}" + PC.GREY)
-    query_log_navigate_action_description(action)
+    query_log_navigate_action_description(action, parent_action=action_stack[0]) # todo change to pop
     rospy.loginfo(PC.GREEN + f"[NEEM] NavigationAction created: {action}" + PC.GREY)
     return action
 

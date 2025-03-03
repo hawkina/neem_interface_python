@@ -20,7 +20,7 @@ which in turn sends the action designator data to KnowRob in order to generate a
 It also contains the variables which need to be set in advance, describing the urdf files, owl files, etc.
 """
 
-
+### DEPRECATED. USE AS REFERENCE ONLY ###
 
 task_type = "Serve Breakfast"
 # todo change from apartment to robocuop arena
