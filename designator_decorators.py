@@ -9,6 +9,8 @@ import functools
 
 
 """This file contains all the decorators which wrap the action designators for logging """
+# TODO: take care of parent hierarchy
+# TODO: make tf log everything or have a second collection for tf_projection
 
 # ---------------- Automation of calling the NEEM interface ----------------
 # Flag to track initialization state
@@ -53,19 +55,6 @@ def action_logger(cls):
 
     def init_logging(self, *args, **kwargs):
         """Logs object creation and calls original __init__."""
-        # global initialized
-        # if not initialized:
-        #     rospy.loginfo(PC.GREEN + "[NEEM] Initializing connection..." + PC.GREY)
-        #     # Your initialization logic here, e.g., establishing connection
-        #     init_neem_interface()
-        #     rospy.loginfo(PC.GREEN + f"[NEEM] Root Action: {root_action}." + PC.GREY)
-        #     parent_action = start_episode()
-        #     initialized = True
-        #     # create_robot("Raphael", "PR2")
-        #     # neem_class_decorator(NavigateAction)
-        #     # neem_class_decorator(NavigateActionPerformable)
-        #     rospy.loginfo(PC.GREEN + "[NEEM] Connection established." + PC.GREY)
-        #     #create_robot(robot_name = "raphael", robot_type = "PR2")
         #     self.parent_action = parent_action # todo find a better way to store the parent action
 
 
@@ -164,6 +153,7 @@ def log_transporting_action_creation(action):
 # --- Resolution Action Logging ---
 # 🔹 NavigationAction Logging
 def log_navigation_action_resolved(action):
+    query_log_navigate_action_resolved(action, parent_action=action_stack[0])
     rospy.loginfo(PC.GREEN + f"[NEEM] NavigationAction resolved: {action}" + PC.GREY)
     return action
 
@@ -182,6 +172,7 @@ def log_transporting_action_resolved(action):
 # --- Perform Action Logging
 def log_navigation_action_performed(action):
     rospy.loginfo(PC.GREEN + f"[NEEM] NavigationAction performed: {action}" + PC.GREY)
+    query_log_navigate_action_performed(action, parent_action=action_stack[0])
     return action
 
 def log_perception_action_performed(action):
