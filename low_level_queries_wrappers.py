@@ -62,7 +62,7 @@ def query_log_navigate_action_description(action, parent_action):
         # go back to main query
         query = f"kb_project(("
         # log the location, differentiate between location designator description and pose
-        if isinstance(destination, LocationDesignatorDescription):
+        if isinstance(destination, LocationDesignatorDescription): # todo test
               location_desig_individual = query_log_location_designator(destination) # assumes return value is an individual IRI corresponding to the logged designator
               if not isinstance(location_desig_individual, list):
                   location_desig_individual = [location_desig_individual]
@@ -71,14 +71,15 @@ def query_log_navigate_action_description(action, parent_action):
                             f"triple(DestinationRole{k}, dul:'classifies', {e}),"
                             f"triple('{action_desig_desc_id}', dul:'definesRole', DestinationRole{k}),")
         elif isinstance(destination, Pose):
-              query += (f"[new_iri(PoseInst, soma:'6DPose'), has_type(PoseInst, soma:'6DPose')],"
-                        f"triple(PoseInst, soma:'hasPositionData', {pose_to_string(destination)}),"
-                        f"[new_iri(DestinationParameter, soma:'Setpoint'), has_type(PoseInst, soma:'Setpoint')],"
+              query += (f"[new_iri(PoseInst, soma:'6DPose'), has_type(PoseInst, soma:'6DPose')])),"
+                        #f"triple(PoseInst, soma:'hasPositionData', {pose_to_string(destination)}),"
+                        f"mem_tf_set(PoseInst, '{destination.frame}', {destination.position_as_list()}, {destination.orientation_as_list()}, {rospy.get_time()}). "
+                        f"kb_project(([new_iri(DestinationParameter, soma:'Setpoint'), has_type(PoseInst, soma:'Setpoint')])),"
                         f"triple(DestinationParameter, dul:'classifies', PoseInst),"
                         f"triple('{action_desig_desc_id}', dul:'definesParameter', DestinationParameter),")
 
         # log the keep_joint_states parameter
-        query += (f"[new_iri(KeepJointStates, croma:'KeepJointStates'), has_type(KeepJointStates, croma:'KeepJointStates')],"
+        query += (f"kb_project(([new_iri(KeepJointStates, croma:'KeepJointStates'), has_type(KeepJointStates, croma:'KeepJointStates')])),"
                   f"triple('{action_desig_desc_id}', dul:'hasParameter', KeepJointStates),")
         if action.keep_joint_states:
             query += f"triple(KeepJointStates, dul:'hasParameterDataValue', 'true'),"
@@ -88,7 +89,8 @@ def query_log_navigate_action_description(action, parent_action):
         query += f"instance_of('{action_desig_desc_id}', Class)"
         query += f"))."
 
-        bindings = knowrob_client.once(query)
+        bindings = {}
+        bindings = knowrob_client.all_solutions(query)
         print(f"bindings: {bindings}")
 
         action_designator_description_ids.append(action_desig_desc_id) # with [0]? why is this a list?
